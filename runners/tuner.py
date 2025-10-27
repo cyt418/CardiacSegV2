@@ -231,12 +231,12 @@ def run_training(
                     )
 
             # Send the current training result back to Tune
-            tune.report(
-                tt_dice=0,
-                tt_iou=0,
-                val_bst_acc=val_acc_best,
-                esc=early_stop_count,
-            )
+            tune.report({
+            "tt_dice": 0,
+            "tt_iou": 0,
+            "val_bst_acc": val_acc_best,
+            "esc": early_stop_count,
+            })
             
            
             # metrics = {
