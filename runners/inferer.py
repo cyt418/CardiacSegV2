@@ -10,7 +10,7 @@ import numpy as np
 from monai.data import decollate_batch
 from monai.transforms import (
     LoadImaged,
-    AddChannel,
+    EnsureChannelFirst,
     SqueezeDimd,
     AsDiscrete,
     KeepLargestConnectedComponent,
