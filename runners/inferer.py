@@ -215,8 +215,10 @@ def run_infering(
         args
     ):
     ret_dict = {}
-    original_meta = data['image'].meta.copy() 
-    original_filename = data['image'].meta['filename_or_obj']
+        
+    # --- 關鍵修正 1：不僅儲存檔名，儲存整個原始 meta 字典 ---
+    original_meta = data['image'].meta.copy() # 使用 .copy() 避免後續的意外修改
+    original_filename = original_meta['filename_or_obj']
     
     # 1. 推論得到 logits
     start_time = time.time()
@@ -277,7 +279,11 @@ def run_infering(
         print("正在儲存預測結果...")
         filename = PurePath(original_filename).name
         infer_img_pth = os.path.join(args.eval_dir, filename)
-        save_img(data['pred'], original_meta, infer_img_pth)
+        save_img(
+          data['pred'], 
+          original_meta, # <--- 使用 original_meta
+          infer_img_pth
+        )
         print(f"結果已儲存至: {infer_img_pth}")
         
     print("正在釋放記憶體...")
