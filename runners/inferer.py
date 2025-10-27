@@ -66,8 +66,8 @@ def eval_label_pred(data, cls_num, device):
     print("\n--- 開始執行 eval_label_pred (手動 One-Hot 版本) ---")
     
     # 1. 定義 Metric 物件
-    dice_metric = DiceMetric(include_background=False, reduction="none", get_not_nans=False)
-    iou_metric = MeanIoU(include_background=False, reduction="none")
+    dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
+    iou_metric = MeanIoU(include_background=False)
     confusion_metric = ConfusionMatrixMetric(
         include_background=False, 
         metric_name=["sensitivity", "specificity"],
