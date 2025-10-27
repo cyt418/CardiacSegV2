@@ -169,6 +169,12 @@ def eval_class_map(pred_map, label_map, cls_num, device):
     if pred_map.ndim == 3: pred_map = pred_map.unsqueeze(0)
     if label_map.ndim == 3: label_map = label_map.unsqueeze(0)
     
+    # --- 關鍵修正：在 one-hot 編碼前，強制裁剪數值範圍 ---
+    # torch.clamp 會將所有小於 0 的值設為 0，大於 cls_num-1 的值設為 cls_num-1
+    pred_map = torch.clamp(pred_map, min=0, max=cls_num - 1)
+    label_map = torch.clamp(label_map, min=0, max=cls_num - 1)
+    # ----------------------------------------------------
+    
     pred_map = torch.clamp(pred_map, min=0, max=cls_num - 1)
     label_map = torch.clamp(label_map, min=0, max=cls_num - 1)
     
