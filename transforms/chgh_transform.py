@@ -120,7 +120,7 @@ def get_inf_transform(keys, args):
                 clip=True,
                 allow_missing_keys=True
             ),
-            AddChanneld(keys=keys),
+            EnsureChannelFirstD(keys=keys),
             ToTensord(keys=keys)
         ]
     )
