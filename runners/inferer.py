@@ -18,9 +18,10 @@ from monai.transforms import (
     LabelFilter,
     MapLabelValue,
     Spacing,
-    SqueezeDim
+    SqueezeDim,
+    AsDiscrete
 )
-from monai.metrics import DiceMetric, MeanIoU, ConfusionMatrixMetric,get_confusion_matrix, compute_confusion_matrix_metric
+from monai.metrics import DiceMetric, MeanIoU, ConfusionMatrixMetric, get_confusion_matrix, compute_confusion_matrix_metric
 
 from data_utils.io import save_img
 import matplotlib.pyplot as plt
@@ -61,41 +62,38 @@ def check_channel(inp):
 
 
 def eval_label_pred(data, cls_num, device):
-    # post transform
+    # --- 這是您需要修改的部分 ---
+    # 1. 為真實標籤定義後處理 (保持不變)
     post_label = AsDiscrete(to_onehot=cls_num)
     
-    # metric
-    dice_metric = DiceMetric(
-        include_background=False,
-        reduction="mean",
-        get_not_nans=False
-    )
+    # 2. 為模型預測定義一個新的、獨立的後處理
+    #    關鍵在於 argmax=True
+    post_pred = AsDiscrete(argmax=True, to_onehot=cls_num)
+    # --- 修改部分結束 ---
 
-    iou_metric = MeanIoU(include_background=False)
+    # metric definitions (保持不變)
+    dice_metric = ...
+    iou_metric = ...
+    confusion_metric = ...
     
-    confusion_metric = ConfusionMatrixMetric(
-        include_background=False, 
-        metric_name="sensitivity", 
-        compute_sample=False, 
-        reduction="mean", 
-        get_not_nans=False
-    )
-    
-    # batch data
+    # batch data (保持不變)
     val_label, val_pred = (data["label"].to(device), data["pred"].to(device))
     
-    # check shape is 5
+    # check shape is 5 (保持不變)
     val_label = check_channel(val_label)
     val_pred = check_channel(val_pred)
     
+    # --- 這是您需要修改的另一部分 ---
     # deallocate batch data
+    # 對 label 使用 post_label
     val_labels_convert = [
         post_label(val_label_tensor) for val_label_tensor in val_label
     ]
+    # 對 pred 使用新建的 post_pred
     val_output_convert = [
-        post_label(val_pred_tensor) for val_pred_tensor in val_pred
+        post_pred(val_pred_tensor) for val_pred_tensor in val_pred
     ]
-    
+    # --- 修改部分結束 ---    
     dice_metric(y_pred=val_output_convert, y=val_labels_convert)
     iou_metric(y_pred=val_output_convert, y=val_labels_convert)
     confusion_metric(y_pred=val_output_convert, y=val_labels_convert)
