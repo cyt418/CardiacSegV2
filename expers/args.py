@@ -67,7 +67,7 @@ def get_parser(argv):
     # model
     parser.add_argument("--model_name", default=None, type=str, help="model name")
     parser.add_argument("--in_channels", default=1, type=int, help="number of input channels")
-    parser.add_argument("--out_channels", default=2, type=int, help="number of output channels")
+    parser.add_argument("--out_channels", default=4, type=int, help="number of output channels")
     parser.add_argument("--patch_size", default=4, type=int, help="number of patch size")
     parser.add_argument("--feature_size", default=48, type=int, help="number of feature size")
     parser.add_argument("--kernel_size", default=7, type=int, help="number of kernel size")
