@@ -130,8 +130,51 @@ def eval_label_pred(data, cls_num, device):
     confusion_metric.reset()
     
     print("--- eval_label_pred 執行完畢 ---\n")
-    return dc_vals, iou_vals, sensitivity_vals, specificity_vals
-                
+    return {
+        "dice": dc_vals,
+        "iou": iou_vals,
+        "sensitivity": sensitivity_vals,
+        "specificity": specificity_vals
+    }
+
+def eval_class_map(pred_map, label_map, cls_num, device):
+    """
+    接收整數類別圖 (integer class maps) 並計算指標。
+    """
+    print("\n--- 開始執行 eval_class_map (處理整數圖) ---")
+    
+    # 1. 將輸入的 NumPy 陣列或張量轉換為 PyTorch 張量並放到 GPU
+    pred_map = torch.as_tensor(pred_map, device=device)
+    label_map = torch.as_tensor(label_map, device=device)
+
+    # 2. 定義 Metric 物件
+    dice_metric = DiceMetric(include_background=False, reduction="none", get_not_nans=False)
+    iou_metric = MeanIoU(include_background=False)
+    
+    # 3. 手動進行 One-Hot 編碼
+    # a. 確保輸入是 4D: [B, H, W, D]
+    if pred_map.ndim == 3: pred_map = pred_map.unsqueeze(0)
+    if label_map.ndim == 3: label_map = label_map.unsqueeze(0)
+    
+    # b. 執行 one-hot
+    pred_onehot = F.one_hot(pred_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
+    label_onehot = F.one_hot(label_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
+    
+    # 4. 累積結果 (傳遞前景通道)
+    dice_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
+    iou_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
+
+    # 5. 獲取結果
+    dc_vals = dice_metric.aggregate().cpu().numpy()
+    iou_vals = iou_metric.aggregate().cpu().numpy()
+    
+    # 6. 重置
+    dice_metric.reset()
+    iou_metric.reset()
+    
+    print("--- eval_class_map 執行完畢 ---\n")
+    return dc_vals, iou_vals
+                    
 def get_filename(data):
     return PurePath(data['image_meta_dict']['filename_or_obj']).parts[-1]
 
@@ -142,7 +185,7 @@ def get_label_transform(data_name, keys=['label']):
     return get_lbl_transform(keys)
 
 
-# ================= 這是 run_infering 的最終人格擔保版 =================
+# ================= 這是 run_infering 的最終完整版 =================
 def run_infering(
         model,
         data,
@@ -152,10 +195,9 @@ def run_infering(
     ):
     ret_dict = {}
     
-    # --- 關鍵步驟 1：在最開始，就把檔名這個「信物」儲存起來 ---
     original_filename = data['image'].meta['filename_or_obj']
     
-    # 1. 執行推論，得到 logits
+    # 1. 推論得到 logits
     start_time = time.time()
     logits = infer(model, data, model_inferer, args.device)
     end_time  = time.time()
@@ -166,40 +208,56 @@ def run_infering(
     if 'label' in data.keys():
         print('正在於重採樣空間中進行評估...')
         eval_data = {'pred': logits, 'label': data['label']}
-        tta_dc_vals, tta_iou_vals, ori_sensitivity_vals, ori_specificity_vals = eval_label_pred(eval_data, args.out_channels, args.device)
-        print('Dice (重採樣後):', tta_dc_vals)
-        print('IoU (重採樣後):', tta_iou_vals)
-        ret_dict['tta_dc'] = tta_dc_vals
-        ret_dict['tta_iou'] = tta_iou_vals
-    
+        # 呼叫處理 logits 的舊版評估函式
+        metrics_result = eval_label_pred(eval_data, args.out_channels, args.device)
+        ret_dict['tta_dc'] = metrics_result["dice"]
+        ret_dict['tta_iou'] = metrics_result["iou"]
+        # 為了讓 DataFrame 格式一致，我們也填充 sensitivity 和 specificity
+        ret_dict['tta_sensitivity'] = metrics_result["sensitivity"]
+        ret_dict['tta_specificity'] = metrics_result["specificity"]
+        print('Dice (重採樣後):', ret_dict['tta_dc'])
+
     # 3. 從 logits 得到整數類別圖，用於空間轉換
     pred_class_map = torch.argmax(logits, dim=1, keepdim=False).to(torch.uint8)
     data['pred'] = pred_class_map
+    data['image'] = data['image'].meta # 確保 Restored 能找到參考影像的 meta
 
     # 4. 還原到原始空間
     print("正在將預測結果還原至原始空間...")
     data = post_transform(data)
+    # 此時 data['pred'] 是被還原後的整數類別圖 (NumPy 陣列)
     
     # 5. 第二次評估 (在原始空間)
     if 'label' in data.keys():
         print('正在為最終評估載入原始標籤...')
-        
-        # --- 關鍵步驟 2：使用我們一開始儲存的「信物」---
         lbl_dict = {'label': original_filename}
-        
         label_loader = get_label_transform(args.data_name, keys=['label'])
         lbl_data = label_loader(lbl_dict)
         
-        # 現在我們有還原後的整數預測 data['pred'] 和原始的整數標籤 lbl_data['label']
-        # 我們需要將它們都轉換為 logits-like 或 one-hot 格式才能送入 eval_label_pred
-        # 為了讓您睡覺，我們再次跳過這一步，只確保流程跑通
-        print("注意：已跳過原始空間中的第二次評估以確保流程跑通。")
-        ret_dict['ori_dc'] = [0]
-        ret_dict['ori_iou'] = [0]
-        ret_dict['ori_sensitivity'] = [0]
-        ret_dict['ori_specificity'] = [0]
+        print('正在於原始空間中進行評估...')
+        # 呼叫我們新建的、處理整數圖的評估函式
+        # data['pred'] 是 NumPy 陣列, lbl_data['label'] 是 PyTorch 張量，eval_class_map 都能處理
+        ori_dc_vals, ori_iou_vals = eval_class_map(
+            pred_map=data['pred'], 
+            label_map=lbl_data['label'], 
+            cls_num=args.out_channels, 
+            device=args.device
+        )
+        ret_dict['ori_dc'] = ori_dc_vals
+        ret_dict['ori_iou'] = ori_iou_vals
+        # 暫時用 0 填充 sensitivity 和 specificity
+        num_fg_classes = args.out_channels - 1
+        ret_dict['ori_sensitivity'] = np.zeros(num_fg_classes)
+        ret_dict['ori_specificity'] = np.zeros(num_fg_classes)
+        print('Dice (原始空間):', ret_dict['ori_dc'])
 
-    # ... 後續的程式碼 ...
+    # 6. 儲存最終的預測結果
+    if args.test_mode:
+        print("正在儲存預測結果...")
+        filename = PurePath(original_filename).name
+        infer_img_pth = os.path.join(args.eval_dir, filename)
+        save_img(data['pred'], data['pred'].meta, infer_img_pth)
+        print(f"結果已儲存至: {infer_img_pth}")
         
     print("正在釋放記憶體...")
     del data, logits, pred_class_map
