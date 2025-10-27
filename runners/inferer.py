@@ -169,11 +169,9 @@ def run_infering(
         ret_dict['tta_dc'] = tta_dc_vals
         ret_dict['tta_iou'] = tta_iou_vals
 
-    # --- 關鍵修正：在空間轉換前，先執行 Argmax ---
-    # 3. 從 logits 得到整數類別圖，用於空間轉換
-    #    .to(torch.uint8) 可以節省一些記憶體
-    pred_class_map = torch.argmax(logits, dim=1, keepdim=True).to(torch.uint8)
-    
+    # 移除 keepdim=True，讓輸出是 [B, H, W, D] 的 4D 張量
+    pred_class_map = torch.argmax(logits, dim=1, keepdim=False).to(torch.uint8)
+
     # 將整數類別圖放回 data['pred']，準備進行空間轉換
     data['pred'] = pred_class_map
 
