@@ -1,5 +1,5 @@
 from monai.transforms import (
-    AddChanneld,
+    EnsureChannelFirstD,
     Compose,
     LoadImaged,
     Orientationd,
@@ -16,7 +16,7 @@ def get_train_transform(args):
     return Compose(
         [
             LoadImaged(keys=["image", "label"]),
-            AddChanneld(keys=["image", "label"]),
+            EnsureChannelFirstD(keys=["image", "label"]),
             Orientationd(keys=["image", "label"], axcodes="RAS"),
             Spacingd(
                 keys=["image", "label"],
@@ -75,7 +75,7 @@ def get_val_transform(args):
     return Compose(
         [
             LoadImaged(keys=["image", "label"]),
-            AddChanneld(keys=["image", "label"]),
+            EnsureChannelFirstD(keys=["image", "label"]),
             Orientationd(keys=["image", "label"], axcodes="RAS"),
             Spacingd(
                 keys=["image", "label"],
@@ -104,7 +104,7 @@ def get_inf_transform(keys, args):
     return Compose(
         [
             LoadImaged(keys=keys),
-            AddChanneld(keys=keys),
+            EnsureChannelFirstD(keys=keys),
             Orientationd(keys=keys, axcodes="RAS"),
             Spacingd(
                 keys=keys,
