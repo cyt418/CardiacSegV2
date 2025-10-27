@@ -5,6 +5,8 @@ sys.path.append("/content/CardiacSegV2")
 import os
 from functools import partial
 
+import numpy as np
+
 import pandas as pd
 
 import torch
@@ -260,6 +262,16 @@ def main_worker(args):
         ])
        
         # run infer
+        def process_metric_output(metric_result, num_expected_classes):
+          #將 MONAI metric 的輸出處理成乾淨的一維陣列。
+          metric_result = np.array(metric_result)
+          processed = metric_result.squeeze()
+          processed = np.nan_to_num(processed, nan=0.0)
+          if processed.ndim == 0:
+              processed = np.array([processed])
+          while len(processed) < num_expected_classes:
+              processed = np.append(processed, 0.0)
+          return processed
         pids = get_pids_by_data_dicts(test_dicts)
         inf_dc_vals = []
         inf_iou_vals = []
@@ -280,15 +292,16 @@ def main_worker(args):
                 post_transform,
                 args
             )
-            tt_dc_vals.append(ret_dict['tta_dc'])
-            tt_iou_vals.append(ret_dict['tta_iou'])
-            inf_dc_vals.append(ret_dict['ori_dc'])
-            inf_iou_vals.append(ret_dict['ori_iou'])
-            inf_sensitivity_vals.append(ret_dict['ori_sensitivity'])
-            inf_specificity_vals.append(ret_dict['ori_specificity'])
-            inf_times.append(ret_dict['inf_time'])
+            num_fg_classes = args.out_channels - 1
+    
+            tt_dc_vals.append(process_metric_output(ret_dict['tta_dc'], num_fg_classes))
+            tt_iou_vals.append(process_metric_output(ret_dict['tta_iou'], num_fg_classes))
+            inf_dc_vals.append(process_metric_output(ret_dict['ori_dc'], num_fg_classes))
+            inf_iou_vals.append(process_metric_output(ret_dict['ori_iou'], num_fg_classes))
+            inf_sensitivity_vals.append(process_metric_output(ret_dict['ori_sensitivity'], num_fg_classes))
+            inf_specificity_vals.append(process_metric_output(ret_dict['ori_specificity'], num_fg_classes))
             
-
+            inf_times.append(ret_dict['inf_time'])            
         
         # make df
         eval_tt_dice_val_df = pd.DataFrame(
