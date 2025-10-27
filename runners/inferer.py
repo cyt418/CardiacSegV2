@@ -36,7 +36,7 @@ def infer(model, data, model_inferer, device):
 
 def check_channel(inp):
     # check shape is 5
-    add_ch = AddChannel()
+    add_ch = EnsureChannelFirst()
     len_inp_shape = len(inp.shape)
     if len_inp_shape == 4:
         inp = add_ch(inp)
@@ -154,7 +154,7 @@ def run_infering(
     # eval infer origin
     if 'label' in data.keys():
         # get orginal label
-        lbl_dict = {'label': data['label_meta_dict']['filename_or_obj']}
+        lbl_dict = {'label': data['image_meta_dict']['filename_or_obj']}
         label_loader = get_label_transform(args.data_name, keys=['label'])
         lbl_data = label_loader(lbl_dict)
         
