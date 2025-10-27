@@ -1,6 +1,6 @@
 import json
 from monai.data import NibabelWriter
-from monai.transforms import AddChannel
+from monai.transforms import EnsureChannelFirst
 
 
 def save_json(data, file_path, sort_keys=True):
@@ -18,6 +18,6 @@ def load_json(file_path):
 
 def save_img(img, img_meta_dict, pth):
     writer = NibabelWriter()
-    writer.set_data_array(AddChannel()(img))
+    writer.set_data_array(EnsureChannelFirst()(img))
     writer.set_metadata(img_meta_dict)
     writer.write(pth, verbose=True)
