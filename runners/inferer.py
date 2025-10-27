@@ -35,14 +35,28 @@ def infer(model, data, model_inferer, device):
 
 
 def check_channel(inp):
-    # check shape is 5
-    add_ch = EnsureChannelFirst()
-    len_inp_shape = len(inp.shape)
-    if len_inp_shape == 4:
-        inp = add_ch(inp)
+    """
+    確保輸入的張量是 5 維的 [B, C, H, W, D]。
+    B: Batch size, C: Channel count
+    """
+    # 獲取輸入張量的維度數量
+    len_inp_shape = inp.ndim  # 使用 .ndim 屬性更簡潔
+
+    # 情況 1: 輸入是 3D 張量，形如 [H, W, D]
+    # 需要增加 Batch 和 Channel 維度
     if len_inp_shape == 3:
-        inp = add_ch(inp)
-        inp = add_ch(inp)
+        # 第一次 unsqueeze 在維度 0 增加 Channel 維度 -> [C, H, W, D] (C=1)
+        # 第二次 unsqueeze 在維度 0 增加 Batch 維度 -> [B, C, H, W, D] (B=1)
+        inp = torch.unsqueeze(inp, 0)
+        inp = torch.unsqueeze(inp, 0)
+
+    # 情況 2: 輸入是 4D 張量，形如 [C, H, W, D]
+    # 只需要增加 Batch 維度
+    elif len_inp_shape == 4:
+        # 在維度 0 增加 Batch 維度 -> [B, C, H, W, D] (B=1)
+        inp = torch.unsqueeze(inp, 0)
+
+    # 如果輸入已經是 5D 或其他維度，則不做任何操作，直接返回
     return inp
 
 
@@ -154,7 +168,7 @@ def run_infering(
     # eval infer origin
     if 'label' in data.keys():
         # get orginal label
-        lbl_dict = {'label': data['image_meta_dict']['filename_or_obj']}
+        lbl_dict = {'label': data['image'].meta['filename_or_obj']}
         label_loader = get_label_transform(args.data_name, keys=['label'])
         lbl_data = label_loader(lbl_dict)
         
