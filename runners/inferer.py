@@ -20,7 +20,8 @@ from monai.transforms import (
     MapLabelValue,
     Spacing,
     SqueezeDim,
-    AsDiscrete
+    AsDiscrete,
+    Resize
 )
 from monai.metrics import DiceMetric, MeanIoU, ConfusionMatrixMetric, get_confusion_matrix, compute_confusion_matrix_metric
 
@@ -137,29 +138,43 @@ def eval_label_pred(data, cls_num, device):
         "specificity": specificity_vals
     }
 
+# ================= 在 eval_class_map 中進行最後的精準修正 =================
 def eval_class_map(pred_map, label_map, cls_num, device):
-    """
-    接收整數類別圖 (integer class maps) 並計算指標。
-    """
     print("\n--- 開始執行 eval_class_map (處理整數圖) ---")
     
-    # 1. 將輸入的 NumPy 陣列或張量轉換為 PyTorch 張量並放到 GPU
+    # 確保兩者都是 PyTorch 張量並在正確的設備上
     pred_map = torch.as_tensor(pred_map, device=device)
     label_map = torch.as_tensor(label_map, device=device)
 
-    # 2. 定義 Metric 物件
-    dice_metric = DiceMetric(include_background=False, reduction="none", get_not_nans=False)
-    iou_metric = MeanIoU(include_background=False)
+    # 確保兩者至少是 3D 空間張量 (H, W, D)
+    while pred_map.ndim < 3: pred_map = pred_map.unsqueeze(-1)
+    while label_map.ndim < 3: label_map = label_map.unsqueeze(-1)
+
+    # --- 關鍵修正：統一空間尺寸 ---
+    # 獲取 label_map 的 3D 空間尺寸
+    target_spatial_size = label_map.shape[-3:] # 取最後三個維度 (H, W, D)
     
-    # 3. 手動進行 One-Hot 編碼
-    # a. 確保輸入是 4D: [B, H, W, D]
+    # 如果 pred_map 的空間尺寸不匹配
+    if pred_map.shape[-3:] != target_spatial_size:
+        print(f"尺寸不匹配！正在將 pred 從 {pred_map.shape[-3:]} resize 到 {target_spatial_size}")
+        
+        # Resize 期望輸入是 [C, H, W, D]，所以我們先 unsqueeze
+        # 這裡 pred_map 是 3D 的 [H, W, D]，unsqueeze 後變成 [1, H, W, D]
+        resize_transform = Resize(spatial_size=target_spatial_size, mode="nearest")
+        pred_map = resize_transform(pred_map.unsqueeze(0)).squeeze(0)
+
+    # --- 後續的 one-hot 邏輯保持不變 ---
     if pred_map.ndim == 3: pred_map = pred_map.unsqueeze(0)
     if label_map.ndim == 3: label_map = label_map.unsqueeze(0)
     
-    # b. 執行 one-hot
+    pred_map = torch.clamp(pred_map, min=0, max=cls_num - 1)
+    label_map = torch.clamp(label_map, min=0, max=cls_num - 1)
+    
     pred_onehot = F.one_hot(pred_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
     label_onehot = F.one_hot(label_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
     
+    # ... 後續的指標計算程式碼 ...
+        
     # 4. 累積結果 (傳遞前景通道)
     dice_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
     iou_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
@@ -194,7 +209,7 @@ def run_infering(
         args
     ):
     ret_dict = {}
-    
+    original_meta = data['image'].meta.copy() 
     original_filename = data['image'].meta['filename_or_obj']
     
     # 1. 推論得到 logits
@@ -256,7 +271,7 @@ def run_infering(
         print("正在儲存預測結果...")
         filename = PurePath(original_filename).name
         infer_img_pth = os.path.join(args.eval_dir, filename)
-        save_img(data['pred'], data['pred'].meta, infer_img_pth)
+        save_img(data['pred'], original_meta, infer_img_pth)
         print(f"結果已儲存至: {infer_img_pth}")
         
     print("正在釋放記憶體...")
