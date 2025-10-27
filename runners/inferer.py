@@ -62,57 +62,56 @@ def check_channel(inp):
 
 
 def eval_label_pred(data, cls_num, device):
-    # --- 這是您需要修改的部分 ---
-    # 1. 為真實標籤定義後處理 (保持不變)
+    # --- 1. 定義後處理轉換 ---
+    # 為模型預測定義轉換 (包含 argmax)
+    post_pred = AsDiscrete(argmax=True, to_onehot=cls_num)
+    # 為真實標籤定義轉換
     post_label = AsDiscrete(to_onehot=cls_num)
     
-    # 2. 為模型預測定義一個新的、獨立的後處理
-    #    關鍵在於 argmax=True
-    post_pred = AsDiscrete(argmax=True, to_onehot=cls_num)
-    # --- 修改部分結束 ---
-
-    # metric definitions (保持不變)
-    dice_metric = ...
-    iou_metric = ...
-    confusion_metric = ...
+    # --- 2. 正確地定義所有 Metric 物件 ---
+    # 確保這些定義沒有被意外覆蓋
+    dice_metric = DiceMetric(
+        include_background=False,
+        reduction="mean",
+        get_not_nans=False
+    )
+    iou_metric = MeanIoU(include_background=False)
+    confusion_metric = ConfusionMatrixMetric(
+        include_background=False, 
+        metric_name=["sensitivity", "specificity"], # 一次性計算多個指標
+        compute_sample=False, 
+        reduction="mean", 
+        get_not_nans=False
+    )
     
-    # batch data (保持不變)
+    # --- 3. 準備資料 ---
     val_label, val_pred = (data["label"].to(device), data["pred"].to(device))
-    
-    # check shape is 5 (保持不變)
     val_label = check_channel(val_label)
     val_pred = check_channel(val_pred)
     
-    # --- 這是您需要修改的另一部分 ---
-    # deallocate batch data
-    # 對 label 使用 post_label
-    val_labels_convert = [
-        post_label(val_label_tensor) for val_label_tensor in val_label
-    ]
-    # 對 pred 使用新建的 post_pred
-    val_output_convert = [
-        post_pred(val_pred_tensor) for val_pred_tensor in val_pred
-    ]
-    # --- 修改部分結束 ---    
+    # --- 4. 應用後處理轉換 ---
+    # MONAI 的轉換可以直接處理整個批次 (batch)
+    val_output_convert = post_pred(val_pred)
+    val_labels_convert = post_label(val_label)
+    
+    # --- 5. 累積結果 ---
     dice_metric(y_pred=val_output_convert, y=val_labels_convert)
     iou_metric(y_pred=val_output_convert, y=val_labels_convert)
     confusion_metric(y_pred=val_output_convert, y=val_labels_convert)
 
-    dc_vals = dice_metric.get_buffer().detach().cpu().numpy().squeeze()
-    iou_vals = iou_metric.get_buffer().detach().cpu().numpy().squeeze()
+    # --- 6. 使用 .aggregate() 獲取最終結果 ---
+    dc_vals = dice_metric.aggregate().cpu().numpy()
+    iou_vals = iou_metric.aggregate().cpu().numpy()
+    conf_matrix_results = confusion_metric.aggregate()
+    sensitivity_vals = conf_matrix_results[0].cpu().numpy() # sensitivity 是第一個結果
+    specificity_vals = conf_matrix_results[1].cpu().numpy() # specificity 是第二個結果
     
-    confusion_vals = confusion_metric.get_buffer().detach().cpu().numpy().squeeze()
-    print("Confusion_Vals：", confusion_vals)
-    tp = confusion_vals[:, 0]
-    fp = confusion_vals[:, 1]
-    tn = confusion_vals[:, 2]
-    fn = confusion_vals[:, 3]
-    sensitivity_vals = tp / (tp + fn)
-    specificity_vals = tn / (tn + fp)
-    
+    # --- 7. 重置 metrics 以備下次呼叫 ---
+    dice_metric.reset()
+    iou_metric.reset()
+    confusion_metric.reset()
     
     return dc_vals, iou_vals, sensitivity_vals, specificity_vals
-
 
 def get_filename(data):
     return PurePath(data['image_meta_dict']['filename_or_obj']).parts[-1]
