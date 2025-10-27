@@ -478,13 +478,13 @@ if __name__ == "__main__":
             # get best model path
             result_grid = restored_tuner.get_results()
             best_result = result_grid.get_best_result(metric="inf_dice", mode="max")
-            model_pth = os.path.join( best_result.log_dir, 'models', 'best_model.pth')
+            model_pth = os.path.join( best_result.path, 'models', 'best_model.pth')
             # test
             # for LinearWarmupCosineAnnealingLR
             args.max_epochs = args.max_epoch
             args.test_mode = True
             args.checkpoint = os.path.join(model_pth)
-            args.eval_dir = os.path.join(best_result.log_dir, 'evals')
+            args.eval_dir = os.path.join(best_result.path, 'evals')
             
             main_worker(args)
         else:
