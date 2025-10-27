@@ -138,7 +138,7 @@ def eval_label_pred(data, cls_num, device):
         "specificity": specificity_vals
     }
 
-# ================= 在 eval_class_map 中進行最後的精準修正 =================
+# ================= 這是 eval_class_map 的最終完整正確版 =================
 def eval_class_map(pred_map, label_map, cls_num, device):
     print("\n--- 開始執行 eval_class_map (處理整數圖) ---")
     
@@ -150,20 +150,22 @@ def eval_class_map(pred_map, label_map, cls_num, device):
     while pred_map.ndim < 3: pred_map = pred_map.unsqueeze(-1)
     while label_map.ndim < 3: label_map = label_map.unsqueeze(-1)
 
-    # --- 關鍵修正：統一空間尺寸 ---
-    # 獲取 label_map 的 3D 空間尺寸
+    # --- 強制統一空間尺寸 ---
     target_spatial_size = label_map.shape[-3:] # 取最後三個維度 (H, W, D)
     
-    # 如果 pred_map 的空間尺寸不匹配
     if pred_map.shape[-3:] != target_spatial_size:
         print(f"尺寸不匹配！正在將 pred 從 {pred_map.shape[-3:]} resize 到 {target_spatial_size}")
-        
-        # Resize 期望輸入是 [C, H, W, D]，所以我們先 unsqueeze
-        # 這裡 pred_map 是 3D 的 [H, W, D]，unsqueeze 後變成 [1, H, W, D]
         resize_transform = Resize(spatial_size=target_spatial_size, mode="nearest")
+        # Resize 期望輸入是 [C, H, W, D]，所以我們先 unsqueeze
         pred_map = resize_transform(pred_map.unsqueeze(0)).squeeze(0)
 
-    # --- 後續的 one-hot 邏輯保持不變 ---
+    # --- ！！！補上被我遺漏的 Metric 物件定義！！！ ---
+    dice_metric = DiceMetric(include_background=False, reduction="none", get_not_nans=False)
+    iou_metric = MeanIoU(include_background=False)
+    # ---------------------------------------------------
+
+    # --- 手動進行 One-Hot 編碼 ---
+    # 確保輸入是 4D 的批次格式 [B, H, W, D] 以進行 one-hot
     if pred_map.ndim == 3: pred_map = pred_map.unsqueeze(0)
     if label_map.ndim == 3: label_map = label_map.unsqueeze(0)
     
@@ -173,21 +175,19 @@ def eval_class_map(pred_map, label_map, cls_num, device):
     pred_onehot = F.one_hot(pred_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
     label_onehot = F.one_hot(label_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
     
-    # ... 後續的指標計算程式碼 ...
-        
-    # 4. 累積結果 (傳遞前景通道)
+    # --- 累積結果 ---
     dice_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
     iou_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
 
-    # 5. 獲取結果
+    # --- 獲取結果 ---
     dc_vals = dice_metric.aggregate().cpu().numpy()
     iou_vals = iou_metric.aggregate().cpu().numpy()
     
-    # 6. 重置
+    # --- 重置 ---
     dice_metric.reset()
     iou_metric.reset()
     
-    print("--- eval_class_map 執行完畢 ---\n")
+    print("--- eval_class_map 完畢 ---\n")
     return dc_vals, iou_vals
                     
 def get_filename(data):
