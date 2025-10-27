@@ -61,58 +61,62 @@ def check_channel(inp):
     return inp
 
 
+# ================= 這是新的 eval_label_pred 函式 =================
 def eval_label_pred(data, cls_num, device):
-    # --- 1. 定義後處理轉換 ---
-    # 為模型預測定義轉換 (包含 argmax)
+    # 1. 定義後處理轉換
     post_pred = AsDiscrete(argmax=True, to_onehot=cls_num)
-    # 為真實標籤定義轉換
     post_label = AsDiscrete(to_onehot=cls_num)
     
-    # --- 2. 正確地定義所有 Metric 物件 ---
-    # 確保這些定義沒有被意外覆蓋
-    dice_metric = DiceMetric(
-        include_background=False,
-        reduction="mean",
-        get_not_nans=False
-    )
+    # 2. 定義 Metric 物件
+    # 注意：既然我們手動移除背景，這裡的 include_background 就不再重要，但保留也無妨
+    dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
     iou_metric = MeanIoU(include_background=False)
     confusion_metric = ConfusionMatrixMetric(
         include_background=False, 
-        metric_name=["sensitivity", "specificity"], # 一次性計算多個指標
+        metric_name=["sensitivity", "specificity"],
         compute_sample=False, 
         reduction="mean", 
         get_not_nans=False
     )
     
-    # --- 3. 準備資料 ---
+    # 3. 準備資料
     val_label, val_pred = (data["label"].to(device), data["pred"].to(device))
+    # check_channel 似乎不是必須的，因為 DataLoader 應該已經處理好了批次維度
+    # 但保留它也無妨
     val_label = check_channel(val_label)
     val_pred = check_channel(val_pred)
     
-    # --- 4. 應用後處理轉換 ---
-    # MONAI 的轉換可以直接處理整個批次 (batch)
-    val_output_convert = post_pred(val_pred)
-    val_labels_convert = post_label(val_label)
-    
-    # --- 5. 累積結果 ---
-    dice_metric(y_pred=val_output_convert, y=val_labels_convert)
-    iou_metric(y_pred=val_output_convert, y=val_labels_convert)
-    confusion_metric(y_pred=val_output_convert, y=val_labels_convert)
+    # 4. 應用後處理轉換，得到完整的 one-hot 編碼
+    val_output_convert_full = post_pred(val_pred)
+    val_labels_convert_full = post_label(val_label)
 
-    # --- 6. 使用 .aggregate() 獲取最終結果 ---
+    # --- 關鍵修正：手動移除背景通道 (通道 0) ---
+    # val_output_convert_full 的形狀是 [B, 4, H, W, D]
+    # 我們只取通道 1, 2, 3
+    val_output_no_bg = val_output_convert_full[:, 1:, :, :, :]
+    val_labels_no_bg = val_labels_convert_full[:, 1:, :, :, :]
+    # 現在，這兩個張量的形狀都是 [B, 3, H, W, D]，完全匹配！
+    
+    # 5. 使用移除了背景的張量來累積結果
+    # 因為我們手動移除了背景，所以這裡的 y_pred 和 y 的形狀是完全一致的
+    dice_metric(y_pred=val_output_no_bg, y=val_labels_no_bg)
+    iou_metric(y_pred=val_output_no_bg, y=val_labels_no_bg)
+    confusion_metric(y_pred=val_output_no_bg, y=val_labels_no_bg)
+
+    # 6. 獲取最終結果
     dc_vals = dice_metric.aggregate().cpu().numpy()
     iou_vals = iou_metric.aggregate().cpu().numpy()
     conf_matrix_results = confusion_metric.aggregate()
-    sensitivity_vals = conf_matrix_results[0].cpu().numpy() # sensitivity 是第一個結果
-    specificity_vals = conf_matrix_results[1].cpu().numpy() # specificity 是第二個結果
+    sensitivity_vals = conf_matrix_results[0].cpu().numpy()
+    specificity_vals = conf_matrix_results[1].cpu().numpy()
     
-    # --- 7. 重置 metrics 以備下次呼叫 ---
+    # 7. 重置 metrics
     dice_metric.reset()
     iou_metric.reset()
     confusion_metric.reset()
     
     return dc_vals, iou_vals, sensitivity_vals, specificity_vals
-
+    
 def get_filename(data):
     return PurePath(data['image_meta_dict']['filename_or_obj']).parts[-1]
 
