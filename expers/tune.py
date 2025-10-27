@@ -1,6 +1,6 @@
 import sys
 # set package path
-sys.path.append("/nfs/Workspace/CardiacSegV2")
+sys.path.append("/content/CardiacSegV2")
 
 import os
 from functools import partial
@@ -33,7 +33,7 @@ from runners.tester import run_testing
 from runners.inferer import run_infering
 from networks.network import network
 from optimizers.optimizer import Optimizer, LR_Scheduler
-
+ray.init(runtime_env={"working_dir": "/content/CardiacSegV2"})
 
 def main(config, args=None):
     if args.tune_mode == 'transform':
@@ -495,7 +495,7 @@ if __name__ == "__main__":
             param_space=search_space,
             run_config=air.RunConfig(
                 name=args.exp_name,
-                local_dir=args.root_exp_dir,
+                storage_path=args.root_exp_dir,
                 progress_reporter=reporter
             )
         )
