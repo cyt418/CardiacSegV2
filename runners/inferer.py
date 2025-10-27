@@ -4,6 +4,7 @@ import importlib
 from pathlib import PurePath
 
 import torch
+import torch.nn.functional as F
 
 import numpy as np
 
@@ -61,14 +62,10 @@ def check_channel(inp):
     return inp
 
 
-# ================= 這是最終的 eval_label_pred 函式 =================
 def eval_label_pred(data, cls_num, device):
-    # 1. 定義後處理轉換
-    post_pred = AsDiscrete(argmax=True, to_onehot=cls_num)
-    post_label = AsDiscrete(to_onehot=cls_num)
+    print("\n--- 開始執行 eval_label_pred (手動 One-Hot 版本) ---")
     
-    # 2. 定義 Metric 物件
-    #    我們讓 MONAI 自己處理背景，所以 include_background=False 是唯一需要做的
+    # 1. 定義 Metric 物件
     dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
     iou_metric = MeanIoU(include_background=False)
     confusion_metric = ConfusionMatrixMetric(
@@ -79,38 +76,62 @@ def eval_label_pred(data, cls_num, device):
         get_not_nans=False
     )
     
-    # 3. 準備資料
-    val_label, val_pred = (data["label"].to(device), data["pred"].to(device))
-    val_label = check_channel(val_label)
-    val_pred = check_channel(val_pred)
+    # 2. 準備資料
+    val_label_int = data["label"].to(device) # 整數類別圖
+    val_pred_logits = data["pred"].to(device) # 概率圖 (logits)
     
-    # 4. 應用後處理轉換，得到完整的、包含背景的 one-hot 編碼
-    val_output_convert = post_pred(val_pred)
-    val_labels_convert = post_label(val_label)
-    # 此時，兩個張量的形狀都應該是 [B, 4, H, W, D]
+    # --- 3. 手動進行後處理，完全取代 AsDiscrete ---
     
-    # --- 關鍵修正：不再手動移除背景通道 ---
-    # 直接將完整的 one-hot 張量傳遞給 metrics
+    # 處理模型預測：
+    # a. Argmax: 從 logits 得到整數類別圖
+    #    輸入: [B, C, H, W, D] -> 輸出: [B, H, W, D]
+    val_pred_int = torch.argmax(val_pred_logits, dim=1) 
     
-    # 5. 累積結果
-    dice_metric(y_pred=val_output_convert, y=val_labels_convert)
-    iou_metric(y_pred=val_output_convert, y=val_labels_convert)
-    confusion_metric(y_pred=val_output_convert, y=val_labels_convert)
+    # b. One-Hot 編碼預測結果:
+    #    輸入: [B, H, W, D] -> 輸出: [B, H, W, D, C]
+    val_output_onehot_temp = F.one_hot(val_pred_int.long(), num_classes=cls_num)
+    # c. 維度重排以符合 MONAI 要求 (C, H, W, D)
+    #    輸入: [B, H, W, D, C] -> 輸出: [B, C, H, W, D]
+    val_output_convert = val_output_onehot_temp.permute(0, 4, 1, 2, 3)
 
-    # 6. 獲取最終結果
+    # 處理真實標籤：
+    # a. 移除標籤多餘的通道維度 (如果存在)
+    #    輸入: [B, 1, H, W, D] -> 輸出: [B, H, W, D]
+    if val_label_int.shape[1] == 1:
+        val_label_int = torch.squeeze(val_label_int, dim=1)
+    # b. One-Hot 編碼標籤結果:
+    #    輸入: [B, H, W, D] -> 輸出: [B, H, W, D, C]
+    val_labels_onehot_temp = F.one_hot(val_label_int.long(), num_classes=cls_num)
+    # c. 維度重排
+    #    輸入: [B, H, W, D, C] -> 輸出: [B, C, H, W, D]
+    val_labels_convert = val_labels_onehot_temp.permute(0, 4, 1, 2, 3)
+
+    print("\n--- 手動 One-Hot 後關鍵形狀檢查 ---")
+    print(f"轉換後的 val_output_convert 形狀: {val_output_convert.shape}")
+    print(f"轉換後的 val_labels_convert 形狀: {val_labels_convert.shape}")
+    print("----------------------------------\n")
+
+    # 4. 累積結果 (現在兩個輸入的形狀絕對一致)
+    #    為了安全，我們只傳遞前景通道
+    dice_metric(y_pred=val_output_convert[:, 1:], y=val_labels_convert[:, 1:])
+    iou_metric(y_pred=val_output_convert[:, 1:], y=val_labels_convert[:, 1:])
+    confusion_metric(y_pred=val_output_convert[:, 1:], y=val_labels_convert[:, 1:])
+
+    # 5. 獲取最終結果
     dc_vals = dice_metric.aggregate().cpu().numpy()
     iou_vals = iou_metric.aggregate().cpu().numpy()
     conf_matrix_results = confusion_metric.aggregate()
     sensitivity_vals = conf_matrix_results[0].cpu().numpy()
     specificity_vals = conf_matrix_results[1].cpu().numpy()
     
-    # 7. 重置 metrics
+    # 6. 重置 metrics
     dice_metric.reset()
     iou_metric.reset()
     confusion_metric.reset()
     
+    print("--- eval_label_pred 執行完畢 ---\n")
     return dc_vals, iou_vals, sensitivity_vals, specificity_vals
-        
+                
 def get_filename(data):
     return PurePath(data['image_meta_dict']['filename_or_obj']).parts[-1]
 
