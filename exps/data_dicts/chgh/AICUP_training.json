@@ -1,68 +1,72 @@
 {
     "test": [
         {
-            "image": "patient0001.nii.gz",
-            "label": "patient0001_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0001.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0001_gt.nii.gz"
         },
         {
-            "image": "patient0002.nii.gz",
-            "label": "patient0002_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0002.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0002_gt.nii.gz"
         },
         {
-            "image": "patient0003.nii.gz",
-            "label": "patient0003_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0003.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0003_gt.nii.gz"
         }
     ],
     "train": [
         {
-            "image": "patient0011.nii.gz",
-            "label": "patient0011_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0011.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0011_gt.nii.gz"
         },
         {
-            "image": "patient0012.nii.gz",
-            "label": "patient0012_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0012.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0012_gt.nii.gz"
         },
         {
-            "image": "patient0013.nii.gz",
-            "label": "patient0013_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0013.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0013_gt.nii.gz"
         },
         {
-            "image": "patient0014.nii.gz",
-            "label": "patient0014_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0014.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0014_gt.nii.gz"
         },
         {
-            "image": "patient0015.nii.gz",
-            "label": "patient0015_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0015.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0015_gt.nii.gz"
         },
         {
-            "image": "patient0016.nii.gz",
-            "label": "patient0016_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0016.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0016_gt.nii.gz"
         },
         {
-            "image": "patient0017.nii.gz",
-            "label": "patient0017_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0017.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0017_gt.nii.gz"
         },
         {
-            "image": "patient0018.nii.gz",
-            "label": "patient0018_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0018.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0018_gt.nii.gz"
         },
         {
-            "image": "patient0019.nii.gz",
-            "label": "patient0019_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0019.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0019_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_01/patient0020.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0020_gt.nii.gz"
         }
     ],
     "val": [
         {
-            "image": "patient0048.nii.gz",
-            "label": "patient0048_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0048.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0048_gt.nii.gz"
         },
         {
-            "image": "patient0049.nii.gz",
-            "label": "patient0049_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0049.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0049_gt.nii.gz"
         },
         {
-            "image": "patient0050.nii.gz",
-            "label": "patient0050_gt.nii.gz"
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0050.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0050_gt.nii.gz"
         }
     ]
 }
