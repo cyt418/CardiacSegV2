@@ -256,7 +256,7 @@ def main_worker(args):
         post_transform = Compose([
             Orientationd(keys=keys, axcodes=axcodes),
             ToNumpyd(keys=keys),
-            Restored(keys=keys, ref_image="image")
+            Restored(keys=keys, ref_image="image", mode="nearest")
         ])
        
         # run infer
