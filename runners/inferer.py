@@ -68,7 +68,7 @@ def eval_label_pred(data, cls_num, device):
     
     # 1. 定義 Metric 物件
     dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
-    iou_metric = MeanIoU(include_background=False)
+    iou_metric = MeanIoU(include_background=False, reduction="mean", get_not_nans=False) # <--- 確保這裡也是 mean
     confusion_metric = ConfusionMatrixMetric(
         include_background=False, 
         metric_name=["sensitivity", "specificity"],
@@ -142,7 +142,22 @@ def eval_label_pred(data, cls_num, device):
 def eval_class_map(pred_map, label_map, cls_num, device):
     print("\n--- 開始執行 eval_class_map (處理整數圖) ---")
     
-    # 確保兩者都是 PyTorch 張量並在正確的設備上
+    # 1. 定義 Metric 物件
+    # --- 關鍵修正：將 reduction 從 "none" 改為 "mean" ---
+    dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
+    # --- 關鍵修正：添加 iou_metric 的定義，並使用 reduction="mean" ---
+    iou_metric = MeanIoU(include_background=False, reduction="mean", get_not_nans=False)
+    # --- 關鍵修正：添加 confusion_metric 以計算 sensitivity/specificity ---
+    confusion_metric = ConfusionMatrixMetric(
+        include_background=False, 
+        metric_name=["sensitivity", "specificity"],
+        compute_sample=False, 
+        reduction="mean", 
+        get_not_nans=False
+    )
+    # -----------------------------------------------------------------
+
+    # 2. 確保兩者都是 PyTorch 張量並在正確的設備上
     pred_map = torch.as_tensor(pred_map, device=device)
     label_map = torch.as_tensor(label_map, device=device)
 
@@ -150,21 +165,17 @@ def eval_class_map(pred_map, label_map, cls_num, device):
     while pred_map.ndim < 3: pred_map = pred_map.unsqueeze(-1)
     while label_map.ndim < 3: label_map = label_map.unsqueeze(-1)
 
-    # --- 強制統一空間尺寸 ---
+    # 3. 強制統一空間尺寸
     target_spatial_size = label_map.shape[-3:] # 取最後三個維度 (H, W, D)
     
     if pred_map.shape[-3:] != target_spatial_size:
         print(f"尺寸不匹配！正在將 pred 從 {pred_map.shape[-3:]} resize 到 {target_spatial_size}")
+        # --- 關鍵修正：使用 "nearest" 模式來 resize 整數圖 ---
         resize_transform = Resize(spatial_size=target_spatial_size, mode="nearest")
         # Resize 期望輸入是 [C, H, W, D]，所以我們先 unsqueeze
         pred_map = resize_transform(pred_map.unsqueeze(0)).squeeze(0)
 
-    # --- ！！！補上被我遺漏的 Metric 物件定義！！！ ---
-    dice_metric = DiceMetric(include_background=False, reduction="none", get_not_nans=False)
-    iou_metric = MeanIoU(include_background=False)
-    # ---------------------------------------------------
-
-    # --- 手動進行 One-Hot 編碼 ---
+    # 4. 手動進行 One-Hot 編碼
     # 確保輸入是 4D 的批次格式 [B, H, W, D] 以進行 one-hot
     if pred_map.ndim == 3: pred_map = pred_map.unsqueeze(0)
     if label_map.ndim == 3: label_map = label_map.unsqueeze(0)
@@ -175,26 +186,35 @@ def eval_class_map(pred_map, label_map, cls_num, device):
     label_map = torch.clamp(label_map, min=0, max=cls_num - 1)
     # ----------------------------------------------------
     
-    pred_map = torch.clamp(pred_map, min=0, max=cls_num - 1)
-    label_map = torch.clamp(label_map, min=0, max=cls_num - 1)
-    
     pred_onehot = F.one_hot(pred_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
     label_onehot = F.one_hot(label_map.long(), num_classes=cls_num).permute(0, 4, 1, 2, 3)
     
-    # --- 累積結果 ---
+    # 5. 累積結果 (傳遞前景通道)
     dice_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
     iou_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
+    confusion_metric(y_pred=pred_onehot[:, 1:], y=label_onehot[:, 1:])
 
-    # --- 獲取結果 ---
+    # 6. 獲取結果
     dc_vals = dice_metric.aggregate().cpu().numpy()
     iou_vals = iou_metric.aggregate().cpu().numpy()
+    conf_matrix_results = confusion_metric.aggregate()
+    sensitivity_vals = conf_matrix_results[0].cpu().numpy()
+    specificity_vals = conf_matrix_results[1].cpu().numpy()
     
-    # --- 重置 ---
+    # 7. 重置
     dice_metric.reset()
     iou_metric.reset()
+    confusion_metric.reset()
     
     print("--- eval_class_map 完畢 ---\n")
-    return dc_vals, iou_vals
+    
+    # 8. 返回字典
+    return {
+        "dice": dc_vals,
+        "iou": iou_vals,
+        "sensitivity": sensitivity_vals,
+        "specificity": specificity_vals
+    }
                     
 def get_filename(data):
     return PurePath(data['image_meta_dict']['filename_or_obj']).parts[-1]
@@ -248,7 +268,7 @@ def run_infering(
     # 4. 還原到原始空間
     print("正在將預測結果還原至原始空間...")
     data = post_transform(data)
-    # 此時 data['pred'] 是被還原後的整數類別圖 (NumPy 陣列)
+    # 此時 data['pred'] 是被還原後的整數類B圖 (NumPy 陣列)
     
     # 5. 第二次評估 (在原始空間)
     if 'label' in data.keys():
@@ -259,19 +279,24 @@ def run_infering(
         
         print('正在於原始空間中進行評估...')
         # 呼叫我們新建的、處理整數圖的評估函式
-        # data['pred'] 是 NumPy 陣列, lbl_data['label'] 是 PyTorch 張量，eval_class_map 都能處理
-        ori_dc_vals, ori_iou_vals = eval_class_map(
+        # data['pred'] 是 NumPy 陣列, lbl_data['label'] 是 PyTorch 張量
+        
+        # --- 關鍵修正：接收字典，而不是兩個單獨的值 ---
+        metrics_result_ori = eval_class_map(
             pred_map=data['pred'], 
             label_map=lbl_data['label'], 
             cls_num=args.out_channels, 
             device=args.device
         )
-        ret_dict['ori_dc'] = ori_dc_vals
-        ret_dict['ori_iou'] = ori_iou_vals
-        # 暫時用 0 填充 sensitivity 和 specificity
-        num_fg_classes = args.out_channels - 1
-        ret_dict['ori_sensitivity'] = np.zeros(num_fg_classes)
-        ret_dict['ori_specificity'] = np.zeros(num_fg_classes)
+        
+        # --- 關鍵修正：從字典中填充所有指標 (移除 np.zeros) ---
+        ret_dict['ori_dc'] = metrics_result_ori["dice"]
+        ret_dict['ori_iou'] = metrics_result_ori["iou"]
+        ret_dict['ori_sensitivity'] = metrics_result_ori["sensitivity"]
+        ret_dict['ori_specificity'] = metrics_result_ori["specificity"]
+        # ---------------------------------------------
+
+        # 這裡現在會印出一個單一的平均值
         print('Dice (原始空間):', ret_dict['ori_dc'])
 
     # 6. 儲存最終的預測結果
