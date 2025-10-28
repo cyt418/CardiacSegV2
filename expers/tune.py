@@ -154,7 +154,7 @@ def main_worker(args):
         if args.model_name =='swinunetr' and args.ssl_checkpoint and os.path.exists(args.ssl_checkpoint):
             pre_train_path = os.path.join(args.ssl_checkpoint)
             weight = torch.load(pre_train_path)
-           
+            
             if "net" in list(weight["state_dict"].keys())[0]:
                 print("Tag 'net' found in state dict - fixing!")
                 for key in list(weight["state_dict"].keys()):
@@ -261,7 +261,7 @@ def main_worker(args):
             ToNumpyd(keys=keys),
             Restored(keys=keys, ref_image="image", mode="nearest")
         ])
-       
+        
         # run infer
         def process_metric_output(metric_result, num_expected_classes):
           #將 MONAI metric 的輸出處理成乾淨的一維陣列。
@@ -280,6 +280,9 @@ def main_worker(args):
         inf_specificity_vals = []
         tt_dc_vals = []
         tt_iou_vals = []
+        # (<<< 修正 1)：初始化遺漏的列表
+        tt_sensitivity_vals = []
+        tt_specificity_vals = []
         inf_times = []
         for data_dict in test_dicts:
             print('infer data:', data_dict)
@@ -297,6 +300,10 @@ def main_worker(args):
     
             tt_dc_vals.append(process_metric_output(ret_dict['tta_dc'], num_fg_classes))
             tt_iou_vals.append(process_metric_output(ret_dict['tta_iou'], num_fg_classes))
+            # (<<< 修正 2)：將 tta 的 sensitivity 和 specificity 添加到列表中
+            tt_sensitivity_vals.append(process_metric_output(ret_dict['tta_sensitivity'], num_fg_classes))
+            tt_specificity_vals.append(process_metric_output(ret_dict['tta_specificity'], num_fg_classes))
+            
             inf_dc_vals.append(process_metric_output(ret_dict['ori_dc'], num_fg_classes))
             inf_iou_vals.append(process_metric_output(ret_dict['ori_iou'], num_fg_classes))
             inf_sensitivity_vals.append(process_metric_output(ret_dict['ori_sensitivity'], num_fg_classes))
@@ -314,11 +321,11 @@ def main_worker(args):
             columns=[f'tt_iou{n}' for n in label_names]
         )
         eval_tt_sensitivity_val_df = pd.DataFrame(
-          tt_sensitivity_vals,
+          tt_sensitivity_vals, # <<< 現在這個變數已經被定義
           columns=[f'tt_sensitivity{n}' for n in label_names]
         )
         eval_tt_specificity_val_df = pd.DataFrame(
-            tt_specificity_vals,
+            tt_specificity_vals, # <<< 現在這個變G數已經被定義
             columns=[f'tt_specificity{n}' for n in label_names]
         )
         
@@ -377,14 +384,16 @@ def main_worker(args):
         
         print(eval_df.to_string())
         
-        tune.report(
-            tt_dice=avg_tt_dice,
-            tt_iou=avg_tt_iou,
-            inf_dice=avg_inf_dice,
-            inf_iou=avg_inf_iou,
-            val_bst_acc=best_acc,
-            inf_time=avg_inf_time
-        )
+        # (<<< 修正 3)：添加 if tune.is_session_enabled(): 檢查
+        if tune.is_session_enabled():
+            tune.report(
+                tt_dice=avg_tt_dice,
+                tt_iou=avg_tt_iou,
+                inf_dice=avg_inf_dice,
+                inf_iou=avg_inf_iou,
+                val_bst_acc=best_acc,
+                inf_time=avg_inf_time
+            )
 
 
 
@@ -393,6 +402,8 @@ if __name__ == "__main__":
     
     if args.tune_mode == 'test':
         print('test mode')
+        # (<<< 修正 3)：在 'test' 模式下，我們需要一個空的 search_space 才能執行
+        search_space = {"exp": tune.grid_search([{"exp": args.exp_name}])}
     elif args.tune_mode == 'train':
         search_space = {
             "exp": tune.grid_search([
@@ -490,7 +501,7 @@ if __name__ == "__main__":
 
 
     if args.resume_tuner:
-        print(f'resume tuner form {args.root_exp_dir}')
+        print(f'resume tuner form {args.root_seed_exp_dir}')
         restored_tuner = tune.Tuner.restore(os.path.join(args.root_exp_dir, args.exp_name), trainable=trainable_with_cpu_gpu)
         
         # for manual test
@@ -521,4 +532,3 @@ if __name__ == "__main__":
             )
         )
         tuner.fit()
-    
