@@ -13,6 +13,8 @@ import torch
 from torch.utils.tensorboard import SummaryWriter 
 import ray
 from ray import air, tune
+# (<<< 修正 3)：在這裡導入 session
+from ray.air import session
 from ray.tune import CLIReporter
 
 from monai.inferers import sliding_window_inference
@@ -264,7 +266,7 @@ def main_worker(args):
         
         # run infer
         def process_metric_output(metric_result, num_expected_classes):
-          #將 MONAI metric 的輸出處理成乾淨的一維陣列。
+          #將 MONAI metric 的輸出處理成乾淨的一維陣RY。
           metric_result = np.array(metric_result)
           processed = metric_result.squeeze()
           processed = np.nan_to_num(processed, nan=0.0)
@@ -384,8 +386,8 @@ def main_worker(args):
         
         print(eval_df.to_string())
         
-        # (<<< 修正 3)：添加 if tune.is_session_enabled(): 檢查
-        if tune.is_session_enabled():
+        # (<<< 修正 3)：將 'tune.is_session_enabled()' 改為 'session.get_session()'
+        if session.get_session():
             tune.report(
                 tt_dice=avg_tt_dice,
                 tt_iou=avg_tt_iou,
@@ -402,7 +404,7 @@ if __name__ == "__main__":
     
     if args.tune_mode == 'test':
         print('test mode')
-        # (<<< 修正 3)：在 'test' 模式下，我們需要一個空的 search_space 才能執行
+        # (<<< 修正)：在 'test' 模式下，我們需要一個空的 search_space 才能執行
         search_space = {"exp": tune.grid_search([{"exp": args.exp_name}])}
     elif args.tune_mode == 'train':
         search_space = {
