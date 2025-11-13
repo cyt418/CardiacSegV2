@@ -388,7 +388,7 @@ def main_worker(args):
         
         # (<<< 修正 3)：將 'tune.is_session_enabled()' 改為 'session.get_session()'
         if session.get_session():
-            tune.report(
+            session.report(
                 tt_dice=avg_tt_dice,
                 tt_iou=avg_tt_iou,
                 inf_dice=avg_inf_dice,
