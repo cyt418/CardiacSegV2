@@ -501,7 +501,7 @@ if __name__ == "__main__":
 
 
     if args.resume_tuner:
-        print(f'resume tuner form {args.root_seed_exp_dir}')
+        print(f'resume tuner form {args.root_exp_dir}')
         restored_tuner = tune.Tuner.restore(os.path.join(args.root_exp_dir, args.exp_name), trainable=trainable_with_cpu_gpu)
         
         # for manual test
