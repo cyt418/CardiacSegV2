@@ -3,6 +3,7 @@ import sys
 sys.path.append("/content/CardiacSegV2")
 
 import os
+import gc  # <<< 1. 在這裡加入
 from functools import partial
 
 import numpy as np
@@ -37,7 +38,10 @@ from data_utils.utils import get_pids_by_loader, get_pids_by_data_dicts
 from runners.tuner import run_training
 from runners.tester import run_testing
 from runners.inferer import run_infering
-ray.init(runtime_env={"working_dir": "/content/CardiacSegV2"})
+ray.init(runtime_env={
+    "working_dir": "/content/CardiacSegV2",
+    "excludes": ["/content/CardiacSegV2/.git/"]
+})
 from optimizers.optimizer import Optimizer, LR_Scheduler
 
 def main(config, args=None):
@@ -266,7 +270,7 @@ def main_worker(args):
         
         # run infer
         def process_metric_output(metric_result, num_expected_classes):
-          #將 MONAI metric 的輸出處理成乾淨的一維陣RY。
+          #將 MONAI metric 的輸出處理成乾淨的一維RY。
           metric_result = np.array(metric_result)
           processed = metric_result.squeeze()
           processed = np.nan_to_num(processed, nan=0.0)
@@ -311,7 +315,10 @@ def main_worker(args):
             inf_sensitivity_vals.append(process_metric_output(ret_dict['ori_sensitivity'], num_fg_classes))
             inf_specificity_vals.append(process_metric_output(ret_dict['ori_specificity'], num_fg_classes))
             
-            inf_times.append(ret_dict['inf_time'])            
+            inf_times.append(ret_dict['inf_time'])  
+
+            gc.collect() # <<< 2. 在迴圈末尾強制回收記憶體
+                    
         
         # make df
         eval_tt_dice_val_df = pd.DataFrame(
