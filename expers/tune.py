@@ -38,7 +38,6 @@ from data_utils.utils import get_pids_by_loader, get_pids_by_data_dicts
 from runners.tuner import run_training
 from runners.tester import run_testing
 from runners.inferer import run_infering
-ray.init(runtime_env={"working_dir": "/content/CardiacSegV2"})
 from optimizers.optimizer import Optimizer, LR_Scheduler
 
 def main(config, args=None):
