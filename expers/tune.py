@@ -33,15 +33,12 @@ from networks.network import network
 
 from expers.args import get_parser, map_args_transform, map_args_optim, map_args_lrschedule, map_args_network
 from data_utils.dataset import DataLoader, get_label_names, get_infer_data
-from data_utils.data_loader_utils import load_data_dict_json
+ray.init(runtime_env={"working_dir": "/content/CardiacSegV2"})
 from data_utils.utils import get_pids_by_loader, get_pids_by_data_dicts
 from runners.tuner import run_training
 from runners.tester import run_testing
 from runners.inferer import run_infering
-ray.init(runtime_env={
-    "working_dir": "/content/CardiacSegV2",
-    "excludes": ["/content/CardiacSegV2/.git/"]
-})
+ray.init(runtime_env={"working_dir": "/content/CardiacSegV2"})
 from optimizers.optimizer import Optimizer, LR_Scheduler
 
 def main(config, args=None):
