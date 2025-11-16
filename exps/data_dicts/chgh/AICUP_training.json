@@ -85,6 +85,38 @@
     ],
     "val": [
         {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0040.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0040_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0041.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0041_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0042.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0042_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0043.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0043_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0044.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0044_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0045.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0045_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0046.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0046_gt.nii.gz"
+        },
+        {
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0047.nii.gz",
+            "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0047_gt.nii.gz"
+        },
+        {
             "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0048.nii.gz",
             "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0048_gt.nii.gz"
         },
