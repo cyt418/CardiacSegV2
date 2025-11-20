@@ -3,7 +3,7 @@ import sys
 sys.path.append("/content/CardiacSegV2")
 
 import os
-import gc  # <<< 1. 在這裡加入
+import gc  # (修正：引入垃圾回收)
 from functools import partial
 
 import numpy as np
@@ -14,7 +14,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter 
 import ray
 from ray import air, tune
-# (<<< 修正 3)：在這裡導入 session
+# (修正：引入 session)
 from ray.air import session
 from ray.tune import CLIReporter
 
@@ -33,11 +33,16 @@ from networks.network import network
 
 from expers.args import get_parser, map_args_transform, map_args_optim, map_args_lrschedule, map_args_network
 from data_utils.dataset import DataLoader, get_label_names, get_infer_data
-ray.init(runtime_env={"working_dir": "/content/CardiacSegV2"})
+# (修正：引入 load_data_dict_json，這是之前報錯的地方)
+from data_utils.data_loader_utils import load_data_dict_json
 from data_utils.utils import get_pids_by_loader, get_pids_by_data_dicts
 from runners.tuner import run_training
 from runners.tester import run_testing
 from runners.inferer import run_infering
+ray.init(runtime_env={
+    "working_dir": "/content/CardiacSegV2",
+    "excludes": ["/content/CardiacSegV2/.git/"]
+})
 from optimizers.optimizer import Optimizer, LR_Scheduler
 
 def main(config, args=None):
@@ -282,7 +287,6 @@ def main_worker(args):
         inf_specificity_vals = []
         tt_dc_vals = []
         tt_iou_vals = []
-        # (<<< 修正 1)：初始化遺漏的列表
         tt_sensitivity_vals = []
         tt_specificity_vals = []
         inf_times = []
@@ -302,7 +306,6 @@ def main_worker(args):
     
             tt_dc_vals.append(process_metric_output(ret_dict['tta_dc'], num_fg_classes))
             tt_iou_vals.append(process_metric_output(ret_dict['tta_iou'], num_fg_classes))
-            # (<<< 修正 2)：將 tta 的 sensitivity 和 specificity 添加到列表中
             tt_sensitivity_vals.append(process_metric_output(ret_dict['tta_sensitivity'], num_fg_classes))
             tt_specificity_vals.append(process_metric_output(ret_dict['tta_specificity'], num_fg_classes))
             
@@ -313,7 +316,8 @@ def main_worker(args):
             
             inf_times.append(ret_dict['inf_time'])  
 
-            gc.collect() # <<< 2. 在迴圈末尾強制回收記憶體
+            # (修正：強制回收記憶體)
+            gc.collect()
                     
         
         # make df
@@ -326,11 +330,11 @@ def main_worker(args):
             columns=[f'tt_iou{n}' for n in label_names]
         )
         eval_tt_sensitivity_val_df = pd.DataFrame(
-          tt_sensitivity_vals, # <<< 現在這個變數已經被定義
+          tt_sensitivity_vals,
           columns=[f'tt_sensitivity{n}' for n in label_names]
         )
         eval_tt_specificity_val_df = pd.DataFrame(
-            tt_specificity_vals, # <<< 現在這個變G數已經被定義
+            tt_specificity_vals,
             columns=[f'tt_specificity{n}' for n in label_names]
         )
         
@@ -389,7 +393,7 @@ def main_worker(args):
         
         print(eval_df.to_string())
         
-        # (<<< 修正 3)：將 'tune.is_session_enabled()' 改為 'session.get_session()'
+        # (修正：先檢查 session 是否存在)
         if session.get_session():
             session.report({
                 "tt_dice": avg_tt_dice,
@@ -407,7 +411,6 @@ if __name__ == "__main__":
     
     if args.tune_mode == 'test':
         print('test mode')
-        # (<<< 修正)：在 'test' 模式下，我們需要一個空的 search_space 才能執行
         search_space = {"exp": tune.grid_search([{"exp": args.exp_name}])}
     elif args.tune_mode == 'train':
         search_space = {
