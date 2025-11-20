@@ -85,7 +85,7 @@
     ],
     "val": [
         {
-            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_03/patient0040.nii.gz",
+            "image": "/content/CardiacSegV2/dataset/chgh/training/41_training_image_02/patient0040.nii.gz",
             "label": "/content/CardiacSegV2/dataset/chgh/training/41_training_label/patient0040_gt.nii.gz"
         },
         {
