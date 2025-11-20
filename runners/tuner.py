@@ -1,3 +1,7 @@
+import sys
+# set package path
+sys.path.append("/content/CardiacSegV2")
+
 import os
 
 from monai.utils import set_determinism
@@ -7,6 +11,8 @@ from monai.inferers import sliding_window_inference
 import torch
 import torch.nn.functional as F
 from ray import tune
+# (修正：補上 session 匯入)
+from ray.air import session
 # from ray import train
 
 from tqdm import tqdm
@@ -36,6 +42,7 @@ def val_epoch(loader, model, model_inferer, acc_func, post_label, post_pred, glo
             loader.set_description(
                 "Validate (%d / %d Steps)" % (global_step, 10.0)
             )
+        # (修正：使用 .item() 獲取純數字，移除方括號)
         mean_dice_val = acc_func.aggregate().item()
         acc_func.reset()
     return mean_dice_val
@@ -83,7 +90,8 @@ def train_epoch(loader, model, optimizer, loss_func, writer, global_step, epoch,
     return global_step
 
 
-def save_checkpoint(filename, model, epoch, best_acc, early_stop_count, args, optimizer=None, scheduler=None):
+# (修正：將參數 filename 改為 basename，並強制使用 args.model_dir)
+def save_checkpoint(basename, model, epoch, best_acc, early_stop_count, args, optimizer=None, scheduler=None):
     state_dict = model.state_dict()
     save_dict = {
         "epoch": epoch,
@@ -95,9 +103,13 @@ def save_checkpoint(filename, model, epoch, best_acc, early_stop_count, args, op
         save_dict["optimizer"] = optimizer.state_dict()
     if scheduler is not None:
         save_dict["scheduler"] = scheduler.state_dict()
-    filename = os.path.join(args.model_dir, filename)
-    torch.save(save_dict, filename)
-    print("Saving checkpoint", filename)
+        
+    # (修正：強制存到永久路徑)
+    os.makedirs(args.model_dir, exist_ok=True)
+    full_path = os.path.join(args.model_dir, basename)
+    
+    torch.save(save_dict, full_path)
+    print("Saving checkpoint", full_path)
 
 
 def run_training(
@@ -157,6 +169,8 @@ def run_training(
             if val_avg_acc > val_acc_best:
                 val_acc_best = val_avg_acc
                 early_stop_count = 0
+                
+                # (修正：只傳檔名，路徑在函式內處理)
                 save_checkpoint(
                     'best_model.pth',
                     model,
@@ -231,22 +245,14 @@ def run_training(
                     )
 
             # Send the current training result back to Tune
-            tune.report({
-            "tt_dice": 0,
-            "tt_iou": 0,
-            "val_bst_acc": val_acc_best,
-            "esc": early_stop_count,
-            })
-            
-           
-            # metrics = {
-            #     'tt_dice':0,
-            #     'tt_iou':0,
-            #     'val_bst_acc':val_acc_best,
-            #     'esc':early_stop_count,
-            # }
-            # train.report(metrics)
-            
+            # (修正：先檢查 session 是否存在)
+            if session.get_session():
+                session.report({
+                    "tt_dice": 0,
+                    "tt_iou": 0,
+                    "val_bst_acc": val_acc_best,
+                    "esc": early_stop_count,
+                })
 
         if scheduler is not None:
             scheduler.step()
